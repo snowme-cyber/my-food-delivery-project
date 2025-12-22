@@ -70,8 +70,12 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         // Разрешаем OPTIONS запросы (для CORS preflight)
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/assets/**").permitAll() // РАЗРЕШИТЬ ФРОНТЕНД
+    .requestMatchers("/auth/**").permitAll()
+    .requestMatchers("/menu/**").permitAll()
+    .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+    .anyRequest().authenticated()
                         // Всё остальное закрыто
-                        .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class);
