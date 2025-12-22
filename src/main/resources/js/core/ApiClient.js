@@ -6,7 +6,7 @@ export default class ApiClient {
             return ApiClient.instance;
         }
         ApiClient.instance = this;
-        this.baseUrl = 'http://localhost:8080'; 
+        this.baseUrl = ''; 
     }
 
     async get(endpoint) {
