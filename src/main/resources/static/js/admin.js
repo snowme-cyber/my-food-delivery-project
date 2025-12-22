@@ -149,10 +149,10 @@ class AdminApp {
         } catch(e) { NotificationService.show(e.message, 'error'); }
     }
 
-    // --- СОТРУДНИКИ ---
     async loadEmployees() {
-        this.pageTitle.innerText = '👥 Сотрудники';
+        this.pageTitle.innerText = '👥 Сотрудники и Пользователи';
         this.contentArea.innerHTML = '<div class="admin-card">Загрузка...</div>';
+        
         try {
             const users = await this.api.get('/admin/users');
             this.contentArea.innerHTML = '';
@@ -163,26 +163,73 @@ class AdminApp {
             addBtn.onclick = () => this.openEmployeeModal();
             this.contentArea.appendChild(addBtn);
 
-            let html = '<div class="admin-card"><table class="admin-table"><thead><tr><th>ID</th><th>Имя</th><th>Email</th><th>Действия</th></tr></thead><tbody>';
+            // ТАБЛИЦА С ВЕРНУВШЕЙСЯ КОЛОНКОЙ "РОЛЬ"
+            let html = `
+                <div class="admin-card">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Имя</th>
+                                <th>Email</th>
+                                <th>Роль</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
             users.forEach(u => {
-                const btn = u.isBlocked ? `<button class="action-btn btn-green btn-block" data-id="${u.id}">Разблок</button>` : `<button class="action-btn btn-delete btn-block" data-id="${u.id}">Блок</button>`;
-                html += `<tr style="${u.isBlocked ? 'opacity:0.5' : ''}"><td>${u.id}</td><td>${u.username}</td><td>${u.email}</td><td>${btn}</td></tr>`;
+                // Красивый бейдж для роли
+                const roleBadge = u.role === 'ROLE_ADMIN' 
+                    ? '<span class="status-badge" style="background:#e3f2fd; color:#1565c0; border: 1px solid #bbdefb;">ADMIN</span>' 
+                    : '<span class="status-badge" style="background:#f5f5f5; color:#888; border: 1px solid #e0e0e0;">User</span>';
+
+                // Настройка кнопки блокировки
+                const btnClass = u.isBlocked ? 'btn-green' : 'btn-delete';
+                const btnText = u.isBlocked ? 'Разблок' : 'Блок';
+                
+                html += `
+                    <tr style="${u.isBlocked ? 'opacity:0.6; background:#fafafa;' : ''}">
+                        <td>#${u.id}</td>
+                        <td style="font-weight:600;">${u.username}</td>
+                        <td>${u.email}</td>
+                        <td>${roleBadge}</td>
+                        <td>
+                            <button class="action-btn ${btnClass} btn-block" data-id="${u.id}">
+                                ${u.isBlocked ? '🔓' : '⛔'} ${btnText}
+                            </button>
+                        </td>
+                    </tr>
+                `;
             });
+
             html += '</tbody></table></div>';
             
-            const div = document.createElement('div');
-            div.innerHTML = html;
-            this.contentArea.appendChild(div);
+            const tableDiv = document.createElement('div');
+            tableDiv.innerHTML = html;
+            this.contentArea.appendChild(tableDiv);
 
-            div.querySelectorAll('.btn-block').forEach(b => b.onclick = async (e) => {
-                if(await ConfirmationModal.ask('Изменить статус?')) {
-                    try {
-                        await this.api.put(`/admin/users/${e.target.dataset.id}/block`, {});
-                        this.loadEmployees();
-                    } catch(err) { NotificationService.show(err.message, 'error'); }
-                }
+            // ОБРАБОТЧИК КЛИКОВ (С КРАСИВЫМ ОКНОМ)
+            tableDiv.querySelectorAll('.btn-block').forEach(btn => {
+                btn.onclick = async (e) => {
+                    const userId = e.currentTarget.dataset.id;
+                    const confirmed = await ConfirmationModal.ask('Изменить статус доступа для этого пользователя?');
+                    
+                    if (confirmed) {
+                        try {
+                            await this.api.put(`/admin/users/${userId}/block`, {});
+                            NotificationService.show('Статус обновлен', 'success');
+                            this.loadEmployees(); // Обновляем таблицу
+                        } catch(err) { 
+                            NotificationService.show(err.message, 'error'); 
+                        }
+                    }
+                };
             });
-        } catch(e) { this.contentArea.innerHTML = `<div class="error">${e.message}</div>`; }
+        } catch(e) { 
+            this.contentArea.innerHTML = `<div class="error">Ошибка загрузки: ${e.message}</div>`; 
+        }
     }
 
     // --- МЕНЮ (ИСПРАВЛЕННОЕ) ---
@@ -352,9 +399,88 @@ class AdminApp {
     }
 
     openEmployeeModal() {
-        const name = prompt("Имя админа:");
-        // Упрощено для краткости, можно вернуть полную форму если нужно
-        if(name) alert("Функция в разработке"); 
+        const overlay = document.createElement('div');
+        overlay.className = 'auth-overlay visible';
+        
+        overlay.innerHTML = `
+            <div class="auth-modal visible" onclick="event.stopPropagation()" style="max-width: 450px;">
+                <div class="auth-header">
+                    <h3>Новый Администратор</h3>
+                    <button class="auth-close">&times;</button>
+                </div>
+                
+                <div class="input-group">
+                    <label>ФИО / Имя пользователя</label>
+                    <input id="adm-name" class="modal-input" type="text" placeholder="Напр. Иван Иванов">
+                </div>
+                
+                <div class="input-group">
+                    <label>Email (Логин для входа)</label>
+                    <input id="adm-email" class="modal-input" type="email" placeholder="admin@example.com">
+                </div>
+                
+                <div class="input-group">
+                    <label>Телефон</label>
+                    <input id="adm-phone" class="modal-input" type="tel" value="+375">
+                </div>
+                
+                <div class="input-group">
+                    <label>Пароль (минимум 6 символов)</label>
+                    <input id="adm-pass" class="modal-input" type="password" placeholder="******">
+                </div>
+
+                <button id="adm-save" class="login-submit-btn" style="margin-top: 20px;">Создать аккаунт</button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Логика закрытия
+        const close = () => {
+            if (document.body.contains(overlay)) {
+                document.body.removeChild(overlay);
+            }
+        };
+        overlay.querySelector('.auth-close').onclick = close;
+        overlay.onclick = close;
+
+        // Логика сохранения
+        overlay.querySelector('#adm-save').onclick = async () => {
+            const name = document.getElementById('adm-name').value.trim();
+            const email = document.getElementById('adm-email').value.trim();
+            const phone = document.getElementById('adm-phone').value.trim();
+            const password = document.getElementById('adm-pass').value.trim();
+
+            // Простая валидация
+            if (!name || !email || !password) {
+                NotificationService.show('Заполните обязательные поля: Имя, Email и Пароль', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                NotificationService.show('Пароль должен быть не менее 6 символов', 'error');
+                return;
+            }
+
+            const data = {
+                username: name,
+                email: email,
+                phone: phone,
+                password: password,
+                address: 'Офис ресторана' // Значение по умолчанию
+            };
+
+            try {
+                // Отправляем запрос на сервер
+                await this.api.post('/admin/users/create-admin', data);
+                
+                NotificationService.show(`Администратор ${name} успешно создан!`, 'success');
+                close();
+                this.loadEmployees(); // Перезагружаем таблицу, чтобы увидеть нового чела
+            } catch (e) {
+                NotificationService.show('Ошибка: ' + e.message, 'error');
+            }
+        };
     }
 }
 
