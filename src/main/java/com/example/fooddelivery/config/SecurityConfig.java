@@ -47,39 +47,43 @@ public class SecurityConfig {
     }
 
    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(AbstractHttpConfigurer::disable)
-                // ВАЖНОЕ ИСПРАВЛЕНИЕ: Мы включаем CORS с настройками по умолчанию
-                // (они подтянутся из вашего WebConfig)
-                .cors(org.springframework.security.config.Customizer.withDefaults()) 
-                
-                .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-                            response.getWriter().write("Unauthorized");
-                        })
-                )
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // Разрешаем Auth и Menu
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/menu/**").permitAll()
-                        // Разрешаем Swagger
-                        .requestMatchers("/swagger-ui/**").permitAll()
-                        .requestMatchers("/v3/api-docs/**").permitAll()
-                        // Разрешаем OPTIONS запросы (для CORS preflight)
-                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/assets/**").permitAll() // РАЗРЕШИТЬ ФРОНТЕНД
-    .requestMatchers("/auth/**").permitAll()
-    .requestMatchers("/menu/**").permitAll()
-    .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-    .anyRequest().authenticated()
-                        // Всё остальное закрыто
-                )
-                .authenticationProvider(authenticationProvider())
-                .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class);
+public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    http
+        .csrf(AbstractHttpConfigurer::disable)
+        .cors(org.springframework.security.config.Customizer.withDefaults()) 
+        .exceptionHandling(exceptions -> exceptions
+            .authenticationEntryPoint((request, response, authException) -> {
+                // Если это запрос к API, отдаем 401 ошибку
+                if (request.getServletPath().startsWith("/api") || 
+                    request.getServletPath().startsWith("/auth") ||
+                    request.getServletPath().startsWith("/menu") ||
+                    request.getServletPath().startsWith("/orders") ||
+                    request.getServletPath().startsWith("/admin/")) {
+                    response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                    response.getWriter().write("Unauthorized");
+                } else {
+                    // Если это просто страница, разрешаем или редиректим на главную
+                    response.sendRedirect("/");
+                }
+            })
+        )
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(auth -> auth
+            // РАЗРЕШАЕМ ВСЕ СТАТИЧЕСКИЕ ФАЙЛЫ И СТРАНИЦЫ
+            .requestMatchers("/", "/index.html", "/admin", "/admin.html", "/favicon.ico").permitAll()
+            .requestMatchers("/css/**", "/js/**", "/assets/**", "/images/**").permitAll()
+            
+            // РАЗРЕШАЕМ ПУБЛИЧНЫЕ ЭНДПОИНТЫ
+            .requestMatchers("/auth/**").permitAll()
+            .requestMatchers("/menu/**").permitAll()
+            .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+            
+            // ЗАЩИЩАЕМ ВСЕ ОСТАЛЬНЫЕ API (Заказы, Админские действия)
+            .anyRequest().authenticated()
+        )
+        .authenticationProvider(authenticationProvider())
+        .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class);
 
-        return http.build();
-    }
+    return http.build();
+}
 }
