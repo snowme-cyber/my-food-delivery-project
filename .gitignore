@@ -1,0 +1,21 @@
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+/bin/
+
+.classpath
+.project
+.settings/
+.springBeans
+.vscode/
+
+*.log
+.DS_Store
+
+### Docker ###
+docker-compose.override.yml
+
+### Java ###
+*.class
+*.jar
+*.war

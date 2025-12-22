@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # База данных PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: food_delivery_db
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_DB=food_delivery
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: always
+
+  # (Опционально) Если бы мы запускали само приложение через Docker,
+  # мы бы передали настройки админа здесь.
+  # Но пока ты запускаешь Java локально, эти настройки можно добавить
+  # в Environment Variables твоей IDE (IntelliJ/Eclipse) или оставить дефолтными.
+
+volumes:
+  db_data:

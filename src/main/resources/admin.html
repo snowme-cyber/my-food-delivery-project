@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Админ Панель - YummyFood</title>
+     <link rel="stylesheet" href="css/style.css"> 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        
+        /* Специфичные стили админки */
+        .admin-layout { display: flex; min-height: 100vh; }
+        .admin-sidebar { width: 250px; background: #21201F; color: #fff; padding: 20px; }
+        .admin-sidebar h2 { color: #FCE000; margin-bottom: 40px; }
+        .admin-menu-item { padding: 15px; cursor: pointer; border-radius: 8px; margin-bottom: 5px; transition: 0.2s; }
+        .admin-menu-item:hover, .admin-menu-item.active { background: #333; }
+        
+        .admin-content { flex: 1; padding: 40px; background: #f5f5f5; }
+        .admin-card { background: #fff; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { color: #888; font-weight: 500; font-size: 14px; }
+        
+        .status-badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .status-created { background: #e3f2fd; color: #2196f3; }
+        .status-cooking { background: #fff3e0; color: #ff9800; }
+        .status-delivering { background: #e8f5e9; color: #4caf50; }
+        .status-completed { background: #eee; color: #555; }
+        
+        .action-btn { padding: 8px 15px; border-radius: 8px; border: none; cursor: pointer; font-size: 12px; margin-right: 5px; }
+        .btn-green { background: #4caf50; color: white; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="admin-app" class="admin-layout">
+        <!-- Sidebar -->
+         <div class="admin-sidebar">
+            <h2 style="padding: 0 10px;">Yummy Admin</h2>
+            <div class="admin-menu-item active" data-tab="orders">📦 Заказы</div>
+            <div class="admin-menu-item" data-tab="menu">🍽️ Меню блюд</div>
+            
+            <!-- НОВЫЙ ПУНКТ -->
+            <div class="admin-menu-item" data-tab="employees">👥 Сотрудники</div>
+            
+            <div class="admin-menu-item" onclick="window.location.href='/'">🏠 На сайт</div>
+        </div>
+
+        <!-- Content -->
+        <div class="admin-content">
+            <h1 id="page-title">Управление заказами</h1>
+            <div id="content-area">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Подключаем скрипт админки как модуль -->
+    <script type="module" src="js/admin.js"></script>
+</body>
+</html>
