@@ -53,8 +53,7 @@ class AdminApp {
         }
     }
 
-// --- ЛОГИКА ЗАКАЗОВ ---
-    renderOrdersTable(orders, container) {
+renderOrdersTable(orders, container) {
         let html = `
             <div class="admin-card" style="overflow-x: auto;">
             <table class="admin-table">
@@ -83,19 +82,28 @@ class AdminApp {
                  statusBadge += '<div style="color:red; font-size:10px; margin-top:4px; font-weight:600;">Не оплачен</div>';
             }
 
-            // 1. ЛОГИКА ЗЕЛЕНОЙ КНОПКИ (ДВИЖЕНИЕ ВПЕРЕД)
+            // --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ---
+            // Мы проверяем: ЛИБО в базе стоит PICKUP, ЛИБО в адресе написано "самовывоз" (регистр не важен)
+            const addressLower = order.address ? order.address.toLowerCase() : '';
+            const isPickup = order.deliveryMethod === 'PICKUP' || addressLower.includes('самовывоз');
+            // ---------------------------
+
+            // 1. ЛОГИКА ЗЕЛЕНОЙ КНОПКИ
             let actionBtn = '';
-            const isPickup = order.deliveryMethod === 'PICKUP';
 
             // Этап 1: Только создан -> Отправить на кухню
             if (['CREATED', 'PAID'].includes(order.status)) {
                 actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="COOKING">👨‍🍳 Готовить</button>`;
             }
-            // Этап 2: Готовится -> Отдать курьеру ИЛИ Сказать, что готов к выдаче
+            // Этап 2: Готовится -> ...
             else if (order.status === 'COOKING') {
-                const btnText = isPickup ? '📦 Готов к выдаче' : '🚗 Отдать курьеру';
-                // В обоих случаях переводим в статус DELIVERING (технически это "процесс доставки/выдачи")
-                actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">${btnText}</button>`;
+                if (isPickup) {
+                    // Если самовывоз -> Готов к выдаче
+                    actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">📦 Готов к выдаче</button>`;
+                } else {
+                    // Если курьер -> Отдать курьеру
+                    actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">🚗 Отдать курьеру</button>`;
+                }
             }
             // Этап 3: В пути / Ждет клиента -> Завершить
             else if (order.status === 'DELIVERING') {
@@ -104,20 +112,19 @@ class AdminApp {
             }
 
             // 2. ЛОГИКА КРАСНОЙ КНОПКИ (ОТМЕНА)
-            // Показываем кнопку отмены, если заказ активен (не завершен и не отменен)
             let cancelBtn = '';
             if (order.status !== 'COMPLETED' && order.status !== 'CANCELLED') {
                 cancelBtn = `<button class="action-btn btn-delete btn-cancel" data-id="${order.id}" style="margin-left: 8px;">❌ Отмена</button>`;
             }
 
-            // Формируем адрес и метод
-            const deliveryText = isPickup ? '🏃 Самовывоз' : '🚗 Курьер';
+            // Формируем текст и иконку для отображения
+            const deliveryIcon = isPickup ? '🏃 Самовывоз' : '🚗 Курьер';
 
             html += `
                 <tr>
                     <td><b>#${order.id}</b></td>
                     <td>
-                        <div style="font-weight:bold;">${deliveryText}</div>
+                        <div style="font-weight:bold;">${deliveryIcon}</div>
                         <div style="font-size:12px; margin-top:4px;">${order.paymentMethod === 'CASH' ? 'Наличные' : 'Карта'}</div>
                         <div style="font-size:12px; color:#666; margin-top:4px;">${order.address}</div>
                     </td>
@@ -138,7 +145,7 @@ class AdminApp {
         html += '</tbody></table></div>';
         container.innerHTML = html;
 
-        // Обработчик ИЗМЕНЕНИЯ СТАТУСА (Зеленая кнопка)
+        // Обработчики кнопок
         container.querySelectorAll('.btn-status').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const id = e.currentTarget.dataset.id;
@@ -147,13 +154,10 @@ class AdminApp {
             });
         });
 
-        // Обработчик ОТМЕНЫ (Красная кнопка)
         container.querySelectorAll('.btn-cancel').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const id = e.currentTarget.dataset.id;
-                // Используем красивое модальное окно
                 const confirmed = await ConfirmationModal.ask(`Вы действительно хотите отменить заказ #${id}?`);
-                
                 if (confirmed) {
                     this.changeStatus(id, 'CANCELLED');
                 }
