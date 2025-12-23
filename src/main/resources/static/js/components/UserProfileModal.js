@@ -234,95 +234,130 @@ render() {
         }
     }
 
- async loadHistoryData() {
+async loadHistoryData() {
         const container = this.overlay.querySelector('#profile-content-area');
-
-        container.innerHTML = '<div style="padding:40px; text-align:center;">⏳ Загрузка истории...</div>';
+        container.innerHTML = 'Загрузка...';
 
         try {
             const orders = await this.api.get('/orders');
-            container.innerHTML = ''; 
-
+            
             if (!orders || orders.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding: 40px; color: #999;">У вас пока нет заказов 😔</div>';
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">Нет заказов</div>';
                 return;
             }
 
+            // Очищаем контейнер перед добавлением элементов
             container.innerHTML = '';
+            const listContainer = document.createElement('div');
+            listContainer.style.padding = '20px';
+
             orders.forEach(order => {
                 const date = new Date(order.createdAt).toLocaleString('ru-RU');
-                const deliveryIcon = order.deliveryMethod === 'PICKUP' ? '🏃 Самовывоз' : '🚗 Доставка';
                 
-                // ОБНОВЛЕННЫЙ ВЫВОД ТОВАРОВ
-                const itemsStr = order.items.map(i => {
-                    const note = i.comment ? ` <span style="color:#e67e22">(${i.comment})</span>` : '';
-                    return `${i.dishName} x${i.quantity}${note}`;
-                }).join('<br>');
-                // --- КНОПКИ ---
-                let buttonsHtml = '';
-
-                // 1. КНОПКА ОПЛАТИТЬ (Показываем для CREATED, если не налом)
-                // (Если бэкенд не шлет paymentMethod, считаем что можно платить всегда, если CREATED)
-                if (order.status === 'CREATED') {
-                    buttonsHtml += `<button class="action-btn pay-btn" style="background:#27ae60; color:white; border:none; margin-right:5px; padding:6px 12px; border-radius:8px;">Оплатить</button>`;
-                    buttonsHtml += `<button class="action-btn cancel-btn" style="border:1px solid #e74c3c; color:#e74c3c; background:white; padding:6px 12px; border-radius:8px;">Отменить</button>`;
-                } 
-                else if (order.status === 'CANCELLED') {
-                    buttonsHtml += `<button class="action-btn restore-btn" style="border:1px solid #27ae60; color:#27ae60; background:white; margin-right:5px; padding:6px 12px; border-radius:8px;">Восстановить</button>`;
-                    buttonsHtml += `<button class="action-btn delete-btn" style="border:1px solid #999; color:#999; background:white; padding:6px 12px; border-radius:8px;">Удалить</button>`;
-                }
+                // Определяем статус и цвет
+                let statusColor = '#ddd';
+                let statusText = order.status;
+                if(order.status === 'COMPLETED') { statusColor = '#e8f5e9'; statusText = 'Выполнен'; }
+                if(order.status === 'CANCELLED') { statusColor = '#ffebee'; statusText = 'Отменен'; }
+                if(order.status === 'CREATED')   { statusColor = '#e3f2fd'; statusText = 'Создан'; }
 
                 const card = document.createElement('div');
-                card.className = 'order-card';
+                card.className = 'order-card'; // Используем класс из CSS
                 card.innerHTML = `
                     <div class="order-header">
-                        <div>
-                            <div class="order-id">Заказ #${order.id}</div>
-                            <div class="order-date">${date}</div>
-                        </div>
-                        <div class="status-badge status-${order.status.toLowerCase()}">${this.translateStatus(order.status)}</div>
+                        <span class="order-id">Заказ #${order.id}</span>
+                        <span class="order-date">${date}</span>
                     </div>
-                    <div class="order-items-text">${itemsStr}</div>
+                    <div style="margin-bottom: 8px;">
+                        <span class="status-badge" style="background:${statusColor}">${statusText}</span>
+                    </div>
+                    <div class="order-items-text">
+                        ${order.items.map(i => `${i.dishName} x${i.quantity}`).join(', ')}
+                    </div>
                     <div class="order-footer">
-                        <div class="order-total" style="font-weight: bold;">${order.totalPrice} BYN</div>
-                        <div style="margin-top: 10px; display:flex; flex-wrap:wrap; gap:8px;">
-                            ${buttonsHtml}
-                            <button class="action-btn repeat-btn" style="background:#FCE000; color:#21201F; border:none; padding:6px 12px; border-radius:8px;">🔄 Повторить</button>
+                        <span class="order-total">${order.totalPrice} BYN</span>
+                        <div class="order-actions">
+                            <!-- Кнопки добавим через JS -->
                         </div>
                     </div>
                 `;
 
-                // --- НАВЕШИВАЕМ СОБЫТИЯ ---
-                const payBtn = card.querySelector('.pay-btn');
-                if (payBtn) payBtn.onclick = () => this.payOrder(order.id, order.totalPrice);
+                // Логика кнопок
+                const actionsDiv = card.querySelector('.order-actions');
 
-                const cancelBtn = card.querySelector('.cancel-btn');
-                if (cancelBtn) cancelBtn.onclick = () => this.handleActionWithConfirm('Отменить заказ?', () => this.cancelOrder(order.id));
+                // Кнопка ВОССТАНОВИТЬ (только для отмененных)
+                if (order.status === 'CANCELLED') {
+                    const restoreBtn = document.createElement('button');
+                    restoreBtn.className = 'action-btn btn-green';
+                    restoreBtn.innerText = '↺ Восстановить';
+                    restoreBtn.style.marginRight = '10px';
+                    
+                    restoreBtn.onclick = async () => {
+                        // КРАСИВОЕ ОКНО
+                        const confirmed = await ConfirmationModal.ask('Восстановить этот заказ?');
+                        if (confirmed) {
+                            try {
+                                await this.api.post(`/orders/${order.id}/restore`);
+                                NotificationService.show('Заказ восстановлен!', 'success');
+                                this.loadHistoryData(); // Обновляем список
+                            } catch (e) {
+                                NotificationService.show(e.message, 'error');
+                            }
+                        }
+                    };
+                    actionsDiv.appendChild(restoreBtn);
+                }
 
-                const restoreBtn = card.querySelector('.restore-btn');
-                if (restoreBtn) restoreBtn.onclick = () => this.restoreOrder(order.id);
+                // Кнопка ОТМЕНИТЬ (только для новых)
+                if (order.status === 'CREATED') {
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'action-btn btn-delete';
+                    cancelBtn.innerText = 'Отменить';
+                    
+                    cancelBtn.onclick = async () => {
+                        const confirmed = await ConfirmationModal.ask('Вы точно хотите отменить заказ?');
+                        if (confirmed) {
+                            try {
+                                await this.api.post(`/orders/${order.id}/cancel`);
+                                NotificationService.show('Заказ отменен', 'info');
+                                this.loadHistoryData();
+                            } catch (e) {
+                                NotificationService.show(e.message, 'error');
+                            }
+                        }
+                    };
+                    actionsDiv.appendChild(cancelBtn);
+                }
 
-                const deleteBtn = card.querySelector('.delete-btn');
-                if (deleteBtn) deleteBtn.onclick = () => this.deleteOrder(order.id);
+                // Кнопка УДАЛИТЬ (скрыть из истории, для завершенных или отмененных)
+                if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'action-btn';
+                    deleteBtn.innerText = '🗑️';
+                    deleteBtn.title = "Удалить из истории";
+                    deleteBtn.style.background = '#fff';
+                    
+                    deleteBtn.onclick = async () => {
+                        const confirmed = await ConfirmationModal.ask('Удалить запись из истории?');
+                        if (confirmed) {
+                            try {
+                                await this.api.delete(`/orders/${order.id}`);
+                                this.loadHistoryData();
+                            } catch (e) {
+                                NotificationService.show(e.message, 'error');
+                            }
+                        }
+                    };
+                    actionsDiv.appendChild(deleteBtn);
+                }
 
-                // ЛОГИКА ПОВТОРА (ТЕПЕРЬ РАБОЧАЯ)
-                card.querySelector('.repeat-btn').onclick = () => {
-                    import('../services/CartService.js').then(module => {
-                        const cartService = module.default.instance;
-                        cartService.addItemsFromHistory(order.items);
-                        NotificationService.show('Товары добавлены в корзину!', 'success');
-                        
-                        // Закрываем модалку и открываем корзину
-                        if(this.overlay) this.overlay.remove();
-                        document.dispatchEvent(new CustomEvent('toggle-cart-sidebar'));
-                    });
-                };
-
-                container.appendChild(card);
+                listContainer.appendChild(card);
             });
 
+            container.appendChild(listContainer);
+
         } catch (e) {
-            container.innerHTML = `<div style="color:red; padding:20px;">Ошибка: ${e.message}</div>`;
+            container.innerHTML = `<div style="color:red; padding:20px;">Ошибка загрузки истории: ${e.message}</div>`;
         }
     }
 

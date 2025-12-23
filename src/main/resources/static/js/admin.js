@@ -83,16 +83,28 @@ class AdminApp {
             }
 
             // 1. ЛОГИКА ЗЕЛЕНОЙ КНОПКИ (СЛЕДУЮЩИЙ ШАГ)
+            // ... внутри цикла orders.forEach ...
+
+            // ЛОГИКА ЗЕЛЕНОЙ КНОПКИ (Действие)
             let actionBtn = '';
+            
+            // Этап 1: Создан -> Готовить
             if (['CREATED', 'PAID'].includes(order.status)) {
                 actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="COOKING">👨‍🍳 Готовить</button>`;
             }
+            // Этап 2: Готовится -> В путь / Готов
             else if (order.status === 'COOKING') {
-                const txt = order.deliveryMethod === 'PICKUP' ? '📦 Готов к выдаче' : '🚗 Отдать курьеру';
-                actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">${txt}</button>`;
+                // Проверяем метод доставки. Важно: сравниваем именно те строки, что приходят с сервера (обычно PICKUP или COURIER)
+                if (order.deliveryMethod === 'PICKUP') {
+                    actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">📦 Готов к выдаче</button>`;
+                } else {
+                    actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">🚗 Отдать курьеру</button>`;
+                }
             }
+            // Этап 3: В пути / Готов к выдаче -> Завершен
             else if (order.status === 'DELIVERING') {
-                actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="COMPLETED">✅ Завершить</button>`;
+                const finishText = order.deliveryMethod === 'PICKUP' ? '✅ Выдан клиенту' : '✅ Доставлен';
+                actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="COMPLETED">${finishText}</button>`;
             }
 
             // 2. ЛОГИКА КРАСНОЙ КНОПКИ (ОТМЕНА)
