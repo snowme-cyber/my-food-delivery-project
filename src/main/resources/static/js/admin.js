@@ -53,6 +53,7 @@ class AdminApp {
         }
     }
 
+// --- ЛОГИКА ЗАКАЗОВ ---
     renderOrdersTable(orders, container) {
         let html = `
             <div class="admin-card" style="overflow-x: auto;">
@@ -82,48 +83,50 @@ class AdminApp {
                  statusBadge += '<div style="color:red; font-size:10px; margin-top:4px; font-weight:600;">Не оплачен</div>';
             }
 
-            // 1. ЛОГИКА ЗЕЛЕНОЙ КНОПКИ (СЛЕДУЮЩИЙ ШАГ)
-            // ... внутри цикла orders.forEach ...
-
-            // ЛОГИКА ЗЕЛЕНОЙ КНОПКИ (Действие)
+            // 1. ЛОГИКА ЗЕЛЕНОЙ КНОПКИ (ДВИЖЕНИЕ ВПЕРЕД)
             let actionBtn = '';
-            
-            // Этап 1: Создан -> Готовить
+            const isPickup = order.deliveryMethod === 'PICKUP';
+
+            // Этап 1: Только создан -> Отправить на кухню
             if (['CREATED', 'PAID'].includes(order.status)) {
                 actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="COOKING">👨‍🍳 Готовить</button>`;
             }
-            // Этап 2: Готовится -> В путь / Готов
+            // Этап 2: Готовится -> Отдать курьеру ИЛИ Сказать, что готов к выдаче
             else if (order.status === 'COOKING') {
-                // Проверяем метод доставки. Важно: сравниваем именно те строки, что приходят с сервера (обычно PICKUP или COURIER)
-                if (order.deliveryMethod === 'PICKUP') {
-                    actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">📦 Готов к выдаче</button>`;
-                } else {
-                    actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">🚗 Отдать курьеру</button>`;
-                }
+                const btnText = isPickup ? '📦 Готов к выдаче' : '🚗 Отдать курьеру';
+                // В обоих случаях переводим в статус DELIVERING (технически это "процесс доставки/выдачи")
+                actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="DELIVERING">${btnText}</button>`;
             }
-            // Этап 3: В пути / Готов к выдаче -> Завершен
+            // Этап 3: В пути / Ждет клиента -> Завершить
             else if (order.status === 'DELIVERING') {
-                const finishText = order.deliveryMethod === 'PICKUP' ? '✅ Выдан клиенту' : '✅ Доставлен';
-                actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="COMPLETED">${finishText}</button>`;
+                const btnText = isPickup ? '✅ Выдан клиенту' : '✅ Доставлен';
+                actionBtn = `<button class="action-btn btn-green btn-status" data-id="${order.id}" data-status="COMPLETED">${btnText}</button>`;
             }
 
             // 2. ЛОГИКА КРАСНОЙ КНОПКИ (ОТМЕНА)
-            // Показываем кнопку отмены, только если заказ еще не завершен и не отменен
+            // Показываем кнопку отмены, если заказ активен (не завершен и не отменен)
             let cancelBtn = '';
             if (order.status !== 'COMPLETED' && order.status !== 'CANCELLED') {
-                // style="margin-left: 5px" - чтобы кнопки не слипались
                 cancelBtn = `<button class="action-btn btn-delete btn-cancel" data-id="${order.id}" style="margin-left: 8px;">❌ Отмена</button>`;
             }
+
+            // Формируем адрес и метод
+            const deliveryText = isPickup ? '🏃 Самовывоз' : '🚗 Курьер';
 
             html += `
                 <tr>
                     <td><b>#${order.id}</b></td>
                     <td>
-                        <div style="font-weight:bold;">${order.deliveryMethod === 'PICKUP' ? 'Самовывоз' : 'Курьер'}</div>
+                        <div style="font-weight:bold;">${deliveryText}</div>
                         <div style="font-size:12px; margin-top:4px;">${order.paymentMethod === 'CASH' ? 'Наличные' : 'Карта'}</div>
                         <div style="font-size:12px; color:#666; margin-top:4px;">${order.address}</div>
                     </td>
-                    <td>${order.items.map(i => `<div>• ${i.dishName} x${i.quantity}</div>`).join('')} <div style="margin-top:5px; font-weight:bold;">${order.totalPrice} BYN</div></td>
+                    <td>${order.items.map(i => {
+                        const note = i.comment ? ` <span style="color:#e67e22">(${i.comment})</span>` : '';
+                        return `<div>• ${i.dishName} x${i.quantity}${note}</div>`;
+                    }).join('')} 
+                        <div style="margin-top:5px; font-weight:bold;">${order.totalPrice} BYN</div>
+                    </td>
                     <td>${statusBadge}</td>
                     <td style="white-space: nowrap;">
                         ${actionBtn}
@@ -135,16 +138,20 @@ class AdminApp {
         html += '</tbody></table></div>';
         container.innerHTML = html;
 
-        // Обработчик ЗЕЛЕНОЙ кнопки (Статус вперед)
+        // Обработчик ИЗМЕНЕНИЯ СТАТУСА (Зеленая кнопка)
         container.querySelectorAll('.btn-status').forEach(btn => {
-            btn.addEventListener('click', (e) => this.changeStatus(e.target.dataset.id, e.target.dataset.status));
+            btn.addEventListener('click', (e) => {
+                const id = e.currentTarget.dataset.id;
+                const status = e.currentTarget.dataset.status;
+                this.changeStatus(id, status);
+            });
         });
 
-        // Обработчик КРАСНОЙ кнопки (Отмена)
+        // Обработчик ОТМЕНЫ (Красная кнопка)
         container.querySelectorAll('.btn-cancel').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const id = e.target.dataset.id;
-                // Защита от случайного нажатия
+                const id = e.currentTarget.dataset.id;
+                // Используем красивое модальное окно
                 const confirmed = await ConfirmationModal.ask(`Вы действительно хотите отменить заказ #${id}?`);
                 
                 if (confirmed) {
@@ -152,6 +159,16 @@ class AdminApp {
                 }
             });
         });
+    }
+    
+    async changeStatus(orderId, newStatus) {
+        try {
+            await this.api.put(`/admin/orders/${orderId}/status?status=${newStatus}`);
+            // Убрал алерт успеха, чтобы не раздражал, сразу обновляем таблицу
+            this.loadOrders(); 
+        } catch (e) {
+            NotificationService.show(`Ошибка: ${e.message}`, 'error');
+        }
     }
 
     async changeStatus(id, st) {
